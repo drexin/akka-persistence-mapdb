@@ -16,6 +16,7 @@ class MapDBJournal extends SyncWriteJournal with MapDBRecovery {
   val db = {
     val maker = DBMaker.newFileDB(new File(s"${config.getString("dir")}/store"))
       .cacheLRUEnable()
+      .closeOnJvmShutdown()
       .mmapFileEnableIfSupported()
 
     if (config.getBoolean("async-writes")) {
@@ -29,12 +30,16 @@ class MapDBJournal extends SyncWriteJournal with MapDBRecovery {
     messages foreach { msg =>
       messagesMap(msg.processorId).put(msg.sequenceNr, msg)
     }
+
+    db.commit()
   }
 
   def writeConfirmations(confirmations: Seq[PersistentConfirmation]): Unit = {
     confirmations foreach { confirmation =>
       confirmationsSet(confirmation.processorId).add(confirmation.sequenceNr)
     }
+
+    db.commit()
   }
 
   def deleteMessages(messageIds: Seq[PersistentId], permanent: Boolean): Unit = {
@@ -47,6 +52,8 @@ class MapDBJournal extends SyncWriteJournal with MapDBRecovery {
         deletionsSet(msgId.processorId).add(msgId.sequenceNr)
       }
     }
+
+    db.commit()
   }
 
   def deleteMessagesTo(processorId: String, toSequenceNr: Long, permanent: Boolean): Unit = {
@@ -61,6 +68,8 @@ class MapDBJournal extends SyncWriteJournal with MapDBRecovery {
         i <- 0L to toSequenceNr
       } set.add(i)
     }
+
+    db.commit()
   }
 
   protected def messagesMap(processorId: String) = {
